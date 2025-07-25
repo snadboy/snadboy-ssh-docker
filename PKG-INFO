@@ -1,0 +1,64 @@
+Metadata-Version: 2.4
+Name: snadboy-ssh-docker
+Version: 0.1.1
+Summary: A Python library for managing Docker containers over SSH connections
+Author-email: snadboy <snadboy@example.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/snadboy/snadboy-ssh-docker
+Project-URL: Repository, https://github.com/snadboy/snadboy-ssh-docker
+Project-URL: Issues, https://github.com/snadboy/snadboy-ssh-docker/issues
+Keywords: docker,ssh,containers,remote,management
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Systems Administration
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: paramiko>=2.7.0
+Requires-Dist: pyyaml>=5.4.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=6.0; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: isort; extra == "dev"
+Requires-Dist: flake8; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+
+# SnadBoy SSH Docker Client
+
+A Python library for managing Docker containers over SSH connections with automatic configuration management.
+
+## Package Information
+
+- **Package Name**: `snadboy-ssh-docker`
+- **Module Name**: `snadboy_ssh_docker`
+- **Version**: Ready for PyPI publication
+
+## Migration Status
+
+This library has been renamed from `ssh_docker_client` to `snadboy_ssh_docker` and is ready for publication to PyPI as `snadboy-ssh-docker`.
+
+## Library Features
+
+- Automatic SSH configuration management
+- Full Docker operations support (list, inspect, execute, events)
+- Async and sync APIs
+- YAML-based host configuration with validation
+- Connection pooling and error handling
+- CLI tool (`ssh-docker-client` command)
+
+## Integration
+
+The `docker_monitor.py` file uses this library to replace the previous embedded SSH Docker logic, providing:
+
+- Cleaner, more maintainable code
+- Better error handling
+- Reusable SSH connection management
+- Type-safe operations

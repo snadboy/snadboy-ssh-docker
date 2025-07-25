@@ -1,0 +1,2 @@
+[console_scripts]
+snadboy-ssh-docker = snadboy_ssh_docker.cli:main
