@@ -1,0 +1,18 @@
+[
+  {
+    "Command": "\"nginx -g 'daemon off;'\"",
+    "CreatedAt": "2023-12-01 10:30:00 +0000 UTC",
+    "ID": "a1b2c3d4e5f6",
+    "Image": "nginx:latest",
+    "Labels": "maintainer=NGINX Docker Maintainers <docker-maint@nginx.com>",
+    "LocalVolumes": "0",
+    "Mounts": "",
+    "Names": "web-server",
+    "Networks": "bridge",
+    "Ports": "80/tcp, 0.0.0.0:8080->80/tcp",
+    "RunningFor": "3 hours ago",
+    "Size": "133MB (virtual 187MB)",
+    "State": "running",
+    "Status": "Up 3 hours"
+  }
+]

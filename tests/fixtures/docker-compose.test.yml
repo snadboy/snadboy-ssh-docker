@@ -1,0 +1,30 @@
+# Docker Compose for SSH integration testing
+version: '3.8'
+
+services:
+  ssh-server:
+    image: linuxserver/openssh-server:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - PUBLIC_KEY_FILE=/config/authorized_keys
+      - SUDO_ACCESS=false
+      - PASSWORD_ACCESS=true
+      - USER_PASSWORD=testpass
+      - USER_NAME=testuser
+    ports:
+      - "2222:2222"
+    volumes:
+      - ssh_config:/config
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2222"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  ssh_config:

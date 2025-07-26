@@ -10,7 +10,7 @@ from .connection import ConnectionPool
 from .exceptions import ConfigurationError, HostNotFoundError, DockerCommandError
 from .models import ContainerInfo
 from .ssh_manager import SSHManager
-from .utils import parse_docker_ps_json, parse_docker_inspect
+from .utils import parse_docker_ps_json, parse_docker_inspect, parse_compose_services
 
 
 class SSHDockerClient:
@@ -87,13 +87,15 @@ class SSHDockerClient:
     async def list_containers(
         self, 
         host: Optional[str] = None,
-        all_containers: bool = False
+        all_containers: bool = False,
+        filters: Optional[Dict[str, str]] = None
     ) -> List[Dict[str, Any]]:
         """List Docker containers.
         
         Args:
             host: Optional host alias (None for all hosts)
             all_containers: Include stopped containers
+            filters: Optional filters to apply (e.g., {"label": "com.docker.compose.service=web"})
             
         Returns:
             List of container dictionaries
@@ -104,6 +106,11 @@ class SSHDockerClient:
         cmd = "ps --format '{{json .}}'"
         if all_containers:
             cmd += " -a"
+        
+        # Add filters
+        if filters:
+            for key, value in filters.items():
+                cmd += f' --filter "{key}={value}"'
         
         containers = []
         
@@ -204,12 +211,180 @@ class SSHDockerClient:
         async for event in self.connection_pool.stream_docker_events(host, filters):
             yield event
     
+    async def analyze_compose_deployment(
+        self,
+        host: str,
+        compose_content: str,
+        project_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Analyze the deployment state of a compose file.
+        
+        Compares services defined in a docker-compose.yml file with actually
+        running containers on a remote host.
+        
+        Args:
+            host: SSH host alias
+            compose_content: Content of docker-compose.yml file
+            project_name: Optional project name to filter by. If not provided,
+                         will attempt to detect from running containers.
+                         
+        Returns:
+            Dictionary containing:
+            - services: Service definitions and their container states
+            - detected_project_names: List of detected compose project names
+            - actions_available: Available docker-compose actions based on state
+            
+        Raises:
+            ValueError: If compose content is invalid
+            HostNotFoundError: If host is not found in configuration
+        """
+        # Parse compose file to get service definitions
+        try:
+            services = parse_compose_services(compose_content)
+        except ValueError as e:
+            raise ValueError(f"Failed to parse compose file: {e}")
+        
+        # Initialize result structure
+        result = {
+            "services": {},
+            "detected_project_names": [],
+            "actions_available": {
+                "up": False,
+                "down": False,
+                "restart": False,
+                "start": False,
+                "stop": False
+            }
+        }
+        
+        # First, detect project names if not provided
+        if not project_name:
+            # Get all containers with compose labels
+            compose_containers = await self.list_containers(
+                host=host,
+                all_containers=True,
+                filters={"label": "com.docker.compose.project"}
+            )
+            
+            # Extract unique project names
+            project_names = set()
+            for container in compose_containers:
+                labels = container.get('Labels', {})
+                if 'com.docker.compose.project' in labels:
+                    project_names.add(labels['com.docker.compose.project'])
+            
+            result["detected_project_names"] = list(project_names)
+        else:
+            result["detected_project_names"] = [project_name]
+        
+        # Track container states
+        any_running = False
+        any_stopped = False
+        any_not_deployed = False
+        
+        # Analyze each service
+        for service_name, service_config in services.items():
+            service_info = {
+                "defined": True,
+                "config": service_config,
+                "containers": [],
+                "state": "not_deployed"
+            }
+            
+            # Look for containers matching this service
+            matching_containers = []
+            
+            # Method 1: If project_name is known, use label filters
+            if project_name:
+                # Note: We need to make two calls since we can't have duplicate keys
+                # First get all containers for the project
+                project_containers = await self.list_containers(
+                    host=host,
+                    all_containers=True,
+                    filters={"label": f"com.docker.compose.project={project_name}"}
+                )
+                # Then filter for the specific service
+                for container in project_containers:
+                    labels = container.get('Labels', {})
+                    if labels.get('com.docker.compose.service') == service_name:
+                        matching_containers.append(container)
+            
+            # Method 2: Look for containers by name pattern (only if Method 1 didn't find anything)
+            if not matching_containers:
+                if service_config.get('container_name'):
+                    # Explicit container name
+                    containers = await self.list_containers(
+                        host=host,
+                        all_containers=True,
+                        filters={"name": service_config['container_name']}
+                    )
+                    matching_containers.extend(containers)
+                else:
+                    # Default naming pattern
+                    for detected_project in result["detected_project_names"]:
+                        # Try common patterns: project_service_1, project-service-1
+                        for separator in ['_', '-']:
+                            pattern = f"{detected_project}{separator}{service_name}"
+                            containers = await self.list_containers(
+                                host=host,
+                                all_containers=True,
+                                filters={"name": pattern}
+                            )
+                            matching_containers.extend(containers)
+            
+            # Deduplicate containers by ID
+            seen_ids = set()
+            unique_containers = []
+            for container in matching_containers:
+                if container['ID'] not in seen_ids:
+                    seen_ids.add(container['ID'])
+                    unique_containers.append(container)
+            
+            service_info["containers"] = unique_containers
+            
+            # Determine service state
+            if not unique_containers:
+                service_info["state"] = "not_deployed"
+                any_not_deployed = True
+            else:
+                running_count = sum(1 for c in unique_containers 
+                                  if c.get('State', '').lower() == 'running')
+                stopped_count = len(unique_containers) - running_count
+                
+                if running_count == len(unique_containers):
+                    service_info["state"] = "running"
+                    any_running = True
+                elif stopped_count == len(unique_containers):
+                    service_info["state"] = "stopped"
+                    any_stopped = True
+                else:
+                    service_info["state"] = "mixed"
+                    any_running = True
+                    any_stopped = True
+            
+            result["services"][service_name] = service_info
+        
+        # Determine available actions
+        if any_running:
+            result["actions_available"]["down"] = True
+            result["actions_available"]["restart"] = True
+            result["actions_available"]["stop"] = True
+        
+        if any_stopped or any_not_deployed:
+            result["actions_available"]["up"] = True
+        
+        if any_stopped and not any_not_deployed:
+            result["actions_available"]["start"] = True
+        
+        return result
+    
     # Sync methods
     
     def list_containers_sync(
         self,
         host: Optional[str] = None,
-        all_containers: bool = False
+        all_containers: bool = False,
+        filters: Optional[Dict[str, str]] = None
     ) -> List[Dict[str, Any]]:
         """Synchronous version of list_containers."""
         self.setup_ssh()
@@ -218,6 +393,11 @@ class SSHDockerClient:
         cmd = "ps --format '{{json .}}'"
         if all_containers:
             cmd += " -a"
+        
+        # Add filters
+        if filters:
+            for key, value in filters.items():
+                cmd += f' --filter "{key}={value}"'
         
         containers = []
         

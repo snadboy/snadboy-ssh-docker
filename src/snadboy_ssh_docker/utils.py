@@ -1,6 +1,7 @@
 """Utility functions for SSH Docker Client."""
 
 import json
+import yaml
 from typing import Any, Dict, List, Optional
 
 
@@ -13,9 +14,21 @@ def parse_docker_ps_json(output: str) -> List[Dict[str, Any]]:
     Returns:
         List of container dictionaries
     """
-    containers = []
+    output = output.strip()
+    if not output:
+        return []
     
-    for line in output.strip().split('\n'):
+    # Try to parse as JSON array first
+    try:
+        data = json.loads(output)
+        if isinstance(data, list):
+            return data
+    except json.JSONDecodeError:
+        pass
+    
+    # Otherwise parse as newline-delimited JSON
+    containers = []
+    for line in output.split('\n'):
         if not line:
             continue
         
@@ -173,3 +186,64 @@ def parse_docker_version(output: str) -> Dict[str, str]:
                 version_info[key] = value
     
     return version_info
+
+
+def parse_compose_services(compose_content: str) -> Dict[str, Dict[str, Any]]:
+    """Parse docker-compose.yml content and extract service definitions.
+    
+    Args:
+        compose_content: Content of docker-compose.yml file
+        
+    Returns:
+        Dictionary mapping service names to their configurations
+        
+    Raises:
+        ValueError: If compose content is invalid YAML
+    """
+    try:
+        compose_data = yaml.safe_load(compose_content)
+    except yaml.YAMLError as e:
+        raise ValueError(f"Invalid YAML in compose file: {e}")
+    
+    if not isinstance(compose_data, dict):
+        raise ValueError("Compose file must be a YAML dictionary")
+    
+    # Handle both v1 (services at root) and v2/v3 (services under 'services' key)
+    services = {}
+    
+    if 'services' in compose_data:
+        # v2/v3 format
+        services_data = compose_data.get('services', {})
+        # Handle case where services key exists but is None or not a dict
+        if not isinstance(services_data, dict):
+            services_data = {}
+    else:
+        # v1 format - services at root level
+        # Exclude known non-service keys
+        non_service_keys = {'version', 'networks', 'volumes', 'configs', 'secrets'}
+        services_data = {k: v for k, v in compose_data.items() 
+                        if k not in non_service_keys and isinstance(v, dict)}
+    
+    for service_name, service_config in services_data.items():
+        if not isinstance(service_config, dict):
+            continue
+            
+        # Extract relevant information
+        service_info = {
+            'image': service_config.get('image'),
+            'container_name': service_config.get('container_name'),
+            'build': service_config.get('build'),
+            'labels': service_config.get('labels', {}),
+            'deploy': service_config.get('deploy', {}),
+            'scale': service_config.get('scale', 1)  # For v1 compatibility
+        }
+        
+        # Handle deploy.replicas for v3
+        if 'deploy' in service_config and 'replicas' in service_config['deploy']:
+            service_info['replicas'] = service_config['deploy']['replicas']
+        else:
+            service_info['replicas'] = service_info['scale']
+            
+        services[service_name] = service_info
+    
+    return services

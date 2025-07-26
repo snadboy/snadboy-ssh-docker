@@ -1,0 +1,42 @@
+# Test configuration file for snadboy-ssh-docker
+
+hosts:
+  test-server-1:
+    hostname: test1.example.com
+    port: 22
+    username: testuser1
+    key_file: ~/.ssh/test_key1
+    timeout: 30
+
+  test-server-2:
+    hostname: test2.example.com
+    port: 2222
+    username: testuser2
+    password: testpass2
+    timeout: 60
+
+  production-server:
+    hostname: prod.example.com
+    port: 22
+    username: deploy
+    key_file: ~/.ssh/prod_key
+    timeout: 120
+
+  staging-server:
+    hostname: staging.example.com
+    port: 22
+    username: deploy
+    password: staging_secret
+    timeout: 60
+
+  minimal-server:
+    hostname: minimal.example.com
+    username: user
+    password: pass
+
+  docker-host:
+    hostname: docker.example.com
+    port: 22
+    username: docker
+    key_file: ~/.ssh/docker_key
+    timeout: 45

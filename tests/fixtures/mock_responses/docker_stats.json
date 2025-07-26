@@ -1,0 +1,132 @@
+{
+  "read": "2023-12-01T13:45:30.123456789Z",
+  "preread": "2023-12-01T13:45:29.123456789Z",
+  "pids_stats": {
+    "current": 5
+  },
+  "blkio_stats": {
+    "io_service_bytes_recursive": [
+      {
+        "major": 254,
+        "minor": 0,
+        "op": "Read",
+        "value": 12345678
+      },
+      {
+        "major": 254,
+        "minor": 0,
+        "op": "Write",
+        "value": 9876543
+      }
+    ],
+    "io_serviced_recursive": [
+      {
+        "major": 254,
+        "minor": 0,
+        "op": "Read",
+        "value": 1234
+      },
+      {
+        "major": 254,
+        "minor": 0,
+        "op": "Write",
+        "value": 987
+      }
+    ]
+  },
+  "num_procs": 0,
+  "storage_stats": {},
+  "cpu_stats": {
+    "cpu_usage": {
+      "total_usage": 987654321098,
+      "percpu_usage": [
+        246913580274,
+        246913580274,
+        246913580275,
+        246913580275
+      ],
+      "usage_in_kernelmode": 123456789012,
+      "usage_in_usermode": 864197532086
+    },
+    "system_cpu_usage": 123456789012345,
+    "online_cpus": 4,
+    "throttling_data": {
+      "periods": 0,
+      "throttled_periods": 0,
+      "throttled_time": 0
+    }
+  },
+  "precpu_stats": {
+    "cpu_usage": {
+      "total_usage": 987654321000,
+      "percpu_usage": [
+        246913580250,
+        246913580250,
+        246913580250,
+        246913580250
+      ],
+      "usage_in_kernelmode": 123456789000,
+      "usage_in_usermode": 864197532000
+    },
+    "system_cpu_usage": 123456789012300,
+    "online_cpus": 4,
+    "throttling_data": {
+      "periods": 0,
+      "throttled_periods": 0,
+      "throttled_time": 0
+    }
+  },
+  "memory_stats": {
+    "usage": 134217728,
+    "max_usage": 268435456,
+    "stats": {
+      "active_anon": 67108864,
+      "active_file": 33554432,
+      "cache": 50331648,
+      "dirty": 0,
+      "hierarchical_memory_limit": 9223372036854775807,
+      "hierarchical_memsw_limit": 9223372036854775807,
+      "inactive_anon": 16777216,
+      "inactive_file": 16777216,
+      "mapped_file": 8388608,
+      "pgfault": 12345,
+      "pgmajfault": 123,
+      "pgpgin": 6789,
+      "pgpgout": 4567,
+      "rss": 83886080,
+      "rss_huge": 0,
+      "total_active_anon": 67108864,
+      "total_active_file": 33554432,
+      "total_cache": 50331648,
+      "total_dirty": 0,
+      "total_inactive_anon": 16777216,
+      "total_inactive_file": 16777216,
+      "total_mapped_file": 8388608,
+      "total_pgfault": 12345,
+      "total_pgmajfault": 123,
+      "total_pgpgin": 6789,
+      "total_pgpgout": 4567,
+      "total_rss": 83886080,
+      "total_rss_huge": 0,
+      "total_unevictable": 0,
+      "total_writeback": 0,
+      "unevictable": 0,
+      "writeback": 0
+    },
+    "limit": 8589934592
+  },
+  "name": "/web-server",
+  "id": "a1b2c3d4e5f6789abc123def456789abc123def456789abc123def456789abc123",
+  "networks": {
+    "eth0": {
+      "rx_bytes": 12345678,
+      "rx_packets": 12345,
+      "rx_errors": 0,
+      "rx_dropped": 0,
+      "tx_bytes": 9876543,
+      "tx_packets": 9876,
+      "tx_errors": 0,
+      "tx_dropped": 0
+    }
+  }
+}

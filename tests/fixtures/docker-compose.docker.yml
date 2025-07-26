@@ -1,0 +1,43 @@
+# Docker Compose for Docker-in-Docker SSH integration testing
+version: '3.8'
+
+services:
+  docker-ssh:
+    image: docker:dind
+    privileged: true
+    environment:
+      - DOCKER_TLS_CERTDIR=/certs
+    ports:
+      - "2376:2376"
+      - "2222:22"
+    volumes:
+      - docker_certs:/certs/client
+      - docker_data:/var/lib/docker
+    command: >
+      sh -c "
+        # Start Docker daemon in background
+        dockerd-entrypoint.sh &
+        
+        # Install OpenSSH server
+        apk add --no-cache openssh-server openssh-client
+        
+        # Configure SSH
+        ssh-keygen -A
+        echo 'root:testpass' | chpasswd
+        echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+        echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
+        echo 'PubkeyAuthentication yes' >> /etc/ssh/sshd_config
+        
+        # Start SSH daemon
+        /usr/sbin/sshd -D
+      "
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  docker_certs:
+  docker_data:
