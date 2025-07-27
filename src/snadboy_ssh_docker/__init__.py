@@ -3,19 +3,16 @@
 from .client import SSHDockerClient
 from .config import HostsConfig, load_hosts_config
 from .exceptions import (
-    SSHDockerError,
-    SSHConnectionError,
+    ConfigurationError,
     DockerCommandError,
     HostNotFoundError,
-    ConfigurationError,
+    SSHConnectionError,
+    SSHDockerError,
 )
 from .models import HostConfig, HostDefaults
 from .ssh_manager import SSHManager
 
-try:
-    from ._version import version as __version__
-except ImportError:
-    __version__ = "0.1.0"
+__version__ = "0.2.1"
 __all__ = [
     "SSHDockerClient",
     "SSHManager",

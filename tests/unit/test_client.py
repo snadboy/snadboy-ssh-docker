@@ -303,13 +303,15 @@ services:
         
         result = await ssh_docker_client.analyze_compose_deployment(
             host="test-host",
-            compose_content=compose_content
+            compose_content=compose_content,
+            compose_dir="/home/user/myproject"
         )
         
         # Check structure
         assert "services" in result
-        assert "detected_project_names" in result
+        assert "project_name" in result
         assert "actions_available" in result
+        assert result["project_name"] == "myproject"
         
         # All services should be not_deployed
         assert len(result["services"]) == 3
@@ -318,7 +320,7 @@ services:
             assert result["services"][service_name]["state"] == "not_deployed"
             assert result["services"][service_name]["containers"] == []
         
-        # Only 'up' action should be available
+        # Only 'up' action should be available for non-deployed containers
         assert result["actions_available"]["up"] is True
         assert result["actions_available"]["down"] is False
         assert result["actions_available"]["restart"] is False
@@ -358,18 +360,25 @@ services:
             }
         ]
         
-        # When project_name is provided, first call gets all project containers
-        # The implementation filters by service label in Python
-        mock_connection_pool.execute_docker_command = AsyncMock(return_value=json.dumps(all_containers))
+        # Mock returns containers based on the name filter
+        def mock_response(host, command):
+            if 'myproject_web_1' in command:
+                return json.dumps([all_containers[0]])  # web container
+            elif 'myproject_api_1' in command:
+                return json.dumps([all_containers[1]])  # api container
+            else:
+                return json.dumps([])  # no containers for other services
+        
+        mock_connection_pool.execute_docker_command = AsyncMock(side_effect=mock_response)
         
         result = await ssh_docker_client.analyze_compose_deployment(
             host="test-host",
             compose_content=compose_content,
-            project_name="myproject"
+            compose_dir="/home/user/myproject"
         )
         
-        # Check detected project
-        assert "myproject" in result["detected_project_names"]
+        # Check project name
+        assert result["project_name"] == "myproject"
         
         # All services should be running
         assert result["services"]["web"]["state"] == "running"
@@ -379,12 +388,12 @@ services:
         api_containers = result["services"]["api"]["containers"]
         assert len(web_containers) == 1
         assert len(api_containers) == 1
-        # Verify correct service assignment
-        assert web_containers[0]["Labels"]["com.docker.compose.service"] == "web"
-        assert api_containers[0]["Labels"]["com.docker.compose.service"] == "api"
+        # Verify containers were found
+        assert web_containers[0]["Names"] == "myproject_web_1"
+        assert api_containers[0]["Names"] == "myproject_api_1"
         
         # Actions available when all running
-        assert result["actions_available"]["up"] is False
+        assert result["actions_available"]["up"] is True  # 'up' is always available (idempotent)
         assert result["actions_available"]["down"] is True
         assert result["actions_available"]["restart"] is True
         assert result["actions_available"]["start"] is False
@@ -425,16 +434,13 @@ services:
             }
         ]
         
-        def mock_response(host, command, **kwargs):
-            # For project detection, return all containers
-            if "com.docker.compose.project" in command and "com.docker.compose.service" not in command:
-                return json.dumps(all_containers)
-            # For name-based searches, filter appropriately
-            elif "_web" in command:
-                return json.dumps([c for c in all_containers if "web" in c["Names"]])
-            elif "_api" in command:
-                return json.dumps([c for c in all_containers if "api" in c["Names"]])
-            elif "_db" in command:
+        def mock_response(host, command):
+            # Match specific container names
+            if 'myproject_web_1' in command:
+                return json.dumps([all_containers[0]])  # web running
+            elif 'myproject_api_1' in command:
+                return json.dumps([all_containers[1]])  # api stopped  
+            elif 'myproject_db_1' in command:
                 return json.dumps([])  # db not deployed
             else:
                 return json.dumps([])
@@ -443,7 +449,8 @@ services:
         
         result = await ssh_docker_client.analyze_compose_deployment(
             host="test-host",
-            compose_content=compose_content
+            compose_content=compose_content,
+            compose_dir="/home/user/myproject"
         )
         
         # Check service states
@@ -469,16 +476,9 @@ services:
     image: nginx:latest
     container_name: my-custom-web
 """
-        # Return empty for label search, but container for name search
-        call_count = 0
-        def mock_response(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            # First call is for project detection
-            if call_count == 1:
-                return "[]"
-            # Second call searches by container name
-            elif "my-custom-web" in args[1]:
+        # Mock returns container when searching by custom name
+        def mock_response(host, command):
+            if "my-custom-web" in command:
                 return json.dumps([{
                     "ID": "abc123",
                     "Names": "my-custom-web",
@@ -491,12 +491,52 @@ services:
         
         result = await ssh_docker_client.analyze_compose_deployment(
             host="test-host",
-            compose_content=compose_content
+            compose_content=compose_content,
+            compose_dir="/home/user/myproject"
         )
         
         # Should find the container by explicit name
         assert result["services"]["web"]["state"] == "running"
         assert len(result["services"]["web"]["containers"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_analyze_compose_deployment_directory_name_cleaning(self, ssh_docker_client, mock_connection_pool):
+        """Test that directory names are cleaned properly for project names."""
+        compose_content = """
+version: '3'
+services:
+  web:
+    image: nginx:latest
+"""
+        mock_connection_pool.execute_docker_command = AsyncMock(return_value="[]")
+        
+        # Test with directory that needs cleaning
+        result = await ssh_docker_client.analyze_compose_deployment(
+            host="test-host",
+            compose_content=compose_content,
+            compose_dir="/home/user/My-Project.2024"
+        )
+        
+        # Should clean to lowercase alphanumeric with dash/underscore
+        assert result["project_name"] == "my-project2024"
+
+    @pytest.mark.asyncio
+    async def test_analyze_compose_deployment_invalid_compose_dir(self, ssh_docker_client, mock_connection_pool):
+        """Test that invalid compose_dir raises ValueError."""
+        compose_content = """
+version: '3'
+services:
+  web:
+    image: nginx:latest
+"""
+        
+        # Test with empty compose_dir
+        with pytest.raises(ValueError, match="compose_dir is required"):
+            await ssh_docker_client.analyze_compose_deployment(
+                host="test-host",
+                compose_content=compose_content,
+                compose_dir=""
+            )
 
     @pytest.mark.asyncio 
     async def test_analyze_compose_deployment_invalid_yaml(self, ssh_docker_client, mock_connection_pool):
@@ -509,5 +549,6 @@ services:
         with pytest.raises(ValueError, match="Failed to parse compose file"):
             await ssh_docker_client.analyze_compose_deployment(
                 host="test-host",
-                compose_content=compose_content
+                compose_content=compose_content,
+                compose_dir="/home/user/myproject"
             )

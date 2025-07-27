@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: snadboy-ssh-docker
-Version: 0.1.1
+Version: 0.2.1
 Summary: A Python library for managing Docker containers over SSH connections
 Author-email: snadboy <snadboy@example.com>
 License-Expression: MIT
@@ -26,6 +26,10 @@ Requires-Dist: pydantic>=2.0.0
 Provides-Extra: dev
 Requires-Dist: pytest>=6.0; extra == "dev"
 Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: pytest-mock; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: testcontainers; extra == "dev"
+Requires-Dist: docker; extra == "dev"
 Requires-Dist: black; extra == "dev"
 Requires-Dist: isort; extra == "dev"
 Requires-Dist: flake8; extra == "dev"

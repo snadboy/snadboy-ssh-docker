@@ -75,7 +75,8 @@ with open("docker-compose.yml", "r") as f:
 # Analyze deployment state
 result = await client.analyze_compose_deployment(
     host="vm-switchboard",
-    compose_content=compose_content
+    compose_content=compose_content,
+    compose_dir="/path/to/compose/directory"  # Required - determines project name
 )
 
 # Check service states
@@ -145,12 +146,13 @@ info = client.inspect_container_sync("vm-switchboard", "container_id")
 Perfect for building UIs that edit docker-compose.yml files and need to show deployment status:
 
 ```python
-async def update_ui_buttons(compose_content, host):
+async def update_ui_buttons(compose_content, host, compose_dir):
     """Update UI buttons based on current deployment state."""
     
     result = await client.analyze_compose_deployment(
         host=host,
-        compose_content=compose_content
+        compose_content=compose_content,
+        compose_dir=compose_dir  # Directory where compose file is located
     )
     
     # Enable/disable action buttons
@@ -179,7 +181,7 @@ async def update_ui_buttons(compose_content, host):
             status_indicator.set_tooltip("Not deployed")
 
 # Call whenever compose file is modified or on page load
-await update_ui_buttons(editor.get_content(), selected_host)
+await update_ui_buttons(editor.get_content(), selected_host, compose_directory)
 ```
 
 ## CLI Usage
@@ -211,7 +213,7 @@ snadboy-ssh-docker events vm-switchboard
 - `docker_events(host, filters=None)` - Stream Docker events
 
 **Docker Compose Analysis:**
-- `analyze_compose_deployment(host, compose_content, project_name=None)` - Analyze compose deployment state
+- `analyze_compose_deployment(host, compose_content, compose_dir)` - Analyze compose deployment state
 
 ### Filter Shortcuts Reference
 
@@ -250,20 +252,29 @@ filters = {"SERVICE": "web", "STATUS": "running"}
         "service_name": {
             "defined": True,
             "config": {...},           # Service configuration from compose file
-            "containers": [...],       # List of matching containers
-            "state": "running"         # running|stopped|mixed|not_deployed
+            "containers": [...],       # List of matching containers (max 1)
+            "state": "running"         # running|stopped|not_deployed
         }
     },
-    "detected_project_names": ["myproject"],  # Detected compose project names
+    "project_name": "myproject",              # Project name derived from compose_dir
     "actions_available": {
-        "up": True,        # Some services not running
+        "up": True,        # Always available (docker-compose up is idempotent)
         "down": True,      # Some services running
         "restart": True,   # Some services running  
-        "start": False,    # All already running
+        "start": False,    # All already running or not deployed
         "stop": True       # Some services running
     }
 }
 ```
+
+**Important Notes about analyze_compose_deployment():**
+- **Requires `compose_dir`**: Used to determine the project name from directory basename
+- **Uses Docker's default naming**: Looks for containers named `{project}_{service}_1`
+- **Single instance only**: Only finds the first instance (`_1`) of each service
+- **Supports `container_name`**: If specified in compose file, uses that exact name
+- **No scaling support**: Scaled services (`_2`, `_3`, etc.) are not detected
+- **No `-p` flag support**: Only works with default project names
+- **`up` is always available**: Since `docker-compose up` is idempotent and safe to run repeatedly
 
 ### Configuration
 

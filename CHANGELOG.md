@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-07-27
+
+### Added
+- **Filter Shortcuts**: New uppercase key shortcuts for common Docker filters
+  - `SERVICE`, `PROJECT`, `STATUS`, `IMAGE`, `NETWORK`, `VOLUME`, `NAME`, `ID`
+  - Simplifies filtering syntax (e.g., `{"SERVICE": "web"}` instead of `{"label": "com.docker.compose.service=web"}`)
+  - Available in `list_containers()` and `docker_events()` methods
+
+### Changed
+- **analyze_compose_deployment() redesign**: Now requires `compose_dir` parameter instead of optional `project_name`
+  - More predictable behavior aligned with Docker Compose conventions
+  - Project name derived from directory basename automatically
+  - Simplified to support only single instance containers (`_1`)
+- **analyze_compose_deployment() fix**: `up` action is now always available, reflecting Docker Compose's idempotent behavior
+
+### Fixed
+- Version inconsistency between pyproject.toml and package version
+- Multiple type checking errors and linting issues
+- Code formatting applied with black and isort
+
+### Improved
+- Documentation updated with filter shortcuts examples and reference table
+- Test coverage for new features
+- Type annotations and mypy compliance
+
 ## [0.1.1] - 2025-07-25
 
 ### Fixed
