@@ -93,8 +93,31 @@ print(f"Can run 'restart': {actions['restart']}")
 
 ### 4. Container Filtering
 
+#### Using Filter Shortcuts (Recommended)
+
 ```python
-# Filter containers by labels
+# Filter containers using uppercase shortcuts - much cleaner!
+containers = await client.list_containers(
+    host="vm-switchboard",
+    filters={"SERVICE": "web", "STATUS": "running"}
+)
+
+# Mix shortcuts with regular filters
+containers = await client.list_containers(
+    host="vm-switchboard", 
+    filters={"PROJECT": "myapp", "NAME": "frontend"}
+)
+
+# Available shortcuts:
+# Docker Compose: SERVICE, PROJECT, COMPOSE_FILE
+# Common Docker: STATUS, IMAGE, NETWORK, VOLUME  
+# Names: NAME, ID
+```
+
+#### Using Raw Docker Filters
+
+```python
+# Traditional Docker filter syntax still supported
 containers = await client.list_containers(
     host="vm-switchboard",
     filters={"label": "com.docker.compose.service=web"}
@@ -180,7 +203,7 @@ snadboy-ssh-docker events vm-switchboard
 
 **Core Docker Operations:**
 - `from_config(config_file)` - Create client from YAML config
-- `list_containers(host, all_containers=False, filters=None)` - List containers with optional filtering
+- `list_containers(host, all_containers=False, filters=None)` - List containers with optional filtering (supports shortcuts!)
 - `list_containers_sync(host, all_containers=False, filters=None)` - Sync version
 - `inspect_container(host, container_id)` - Get container details
 - `inspect_container_sync(host, container_id)` - Sync version
@@ -189,6 +212,35 @@ snadboy-ssh-docker events vm-switchboard
 
 **Docker Compose Analysis:**
 - `analyze_compose_deployment(host, compose_content, project_name=None)` - Analyze compose deployment state
+
+### Filter Shortcuts Reference
+
+| Shortcut | Expands To | Description |
+|----------|------------|-------------|
+| `SERVICE` | `label: "com.docker.compose.service=value"` | Docker Compose service name |
+| `PROJECT` | `label: "com.docker.compose.project=value"` | Docker Compose project name |
+| `COMPOSE_FILE` | `label: "com.docker.compose.config-file=value"` | Docker Compose config file |
+| `STATUS` | `status: "value"` | Container status (running, exited, etc.) |
+| `IMAGE` | `ancestor: "value"` | Container image |
+| `NETWORK` | `network: "value"` | Docker network |
+| `VOLUME` | `volume: "value"` | Docker volume |
+| `NAME` | `name: "value"` | Container name pattern |
+| `ID` | `id: "value"` | Container ID |
+
+**Usage Examples:**
+```python
+# Before (verbose)
+filters = {"label": "com.docker.compose.service=web", "status": "running"}
+
+# After (with shortcuts)
+filters = {"SERVICE": "web", "STATUS": "running"}
+```
+
+**Important Notes:**
+- Shortcuts must be UPPERCASE to be expanded
+- Shortcuts that expand to the same key will overwrite each other
+- Mix shortcuts with regular filters, but avoid conflicts (e.g., don't use both `SERVICE` and `label` keys)
+- Lowercase and mixed-case keys are treated as regular Docker filters
 
 #### analyze_compose_deployment() Response
 

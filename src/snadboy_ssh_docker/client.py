@@ -84,6 +84,49 @@ class SSHDockerClient:
     
     # Async methods
     
+    def _expand_filter_shortcuts(self, filters: Optional[Dict[str, str]]) -> Optional[Dict[str, str]]:
+        """Expand uppercase shortcut keys to Docker filter syntax.
+        
+        Args:
+            filters: Original filters dict with potential shortcuts
+            
+        Returns:
+            Expanded filters dict with Docker syntax
+        """
+        if not filters:
+            return filters
+            
+        # Define shortcut mappings
+        shortcuts = {
+            # Docker Compose shortcuts
+            "SERVICE": lambda v: ("label", f"com.docker.compose.service={v}"),
+            "PROJECT": lambda v: ("label", f"com.docker.compose.project={v}"),
+            "COMPOSE_FILE": lambda v: ("label", f"com.docker.compose.config-file={v}"),
+            
+            # Common Docker shortcuts
+            "STATUS": lambda v: ("status", v),
+            "IMAGE": lambda v: ("ancestor", v),
+            "NETWORK": lambda v: ("network", v),
+            "VOLUME": lambda v: ("volume", v),
+            
+            # Name shortcuts
+            "NAME": lambda v: ("name", v),
+            "ID": lambda v: ("id", v),
+        }
+        
+        expanded = {}
+        
+        for key, value in filters.items():
+            if key in shortcuts:
+                # Expand shortcut
+                new_key, new_value = shortcuts[key](value)
+                expanded[new_key] = new_value
+            else:
+                # Keep original filter
+                expanded[key] = value
+                
+        return expanded
+    
     async def list_containers(
         self, 
         host: Optional[str] = None,
@@ -102,14 +145,17 @@ class SSHDockerClient:
         """
         self.setup_ssh()
         
+        # Expand filter shortcuts
+        expanded_filters = self._expand_filter_shortcuts(filters)
+        
         # Build docker ps command
         cmd = "ps --format '{{json .}}'"
         if all_containers:
             cmd += " -a"
         
         # Add filters
-        if filters:
-            for key, value in filters.items():
+        if expanded_filters:
+            for key, value in expanded_filters.items():
                 cmd += f' --filter "{key}={value}"'
         
         containers = []
@@ -208,7 +254,10 @@ class SSHDockerClient:
         """
         self.setup_ssh()
         
-        async for event in self.connection_pool.stream_docker_events(host, filters):
+        # Expand filter shortcuts
+        expanded_filters = self._expand_filter_shortcuts(filters)
+        
+        async for event in self.connection_pool.stream_docker_events(host, expanded_filters):
             yield event
     
     async def analyze_compose_deployment(

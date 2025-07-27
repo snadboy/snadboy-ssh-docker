@@ -10,6 +10,111 @@ from snadboy_ssh_docker.exceptions import ConfigurationError, HostNotFoundError,
 from snadboy_ssh_docker.models import ContainerInfo
 
 
+class TestFilterShortcuts:
+    """Test cases for filter shortcut expansion."""
+
+    def test_expand_filter_shortcuts_with_compose_shortcuts(self, test_hosts_config):
+        """Test expansion of Docker Compose shortcuts."""
+        client = SSHDockerClient(hosts_config=test_hosts_config)
+        
+        # Test individual shortcuts to avoid dict key conflicts
+        filters = {"SERVICE": "web"}
+        expanded = client._expand_filter_shortcuts(filters)
+        assert expanded == {"label": "com.docker.compose.service=web"}
+        
+        filters = {"PROJECT": "myapp"}
+        expanded = client._expand_filter_shortcuts(filters)
+        assert expanded == {"label": "com.docker.compose.project=myapp"}
+        
+        filters = {"COMPOSE_FILE": "/path/to/compose.yml"}
+        expanded = client._expand_filter_shortcuts(filters)
+        assert expanded == {"label": "com.docker.compose.config-file=/path/to/compose.yml"}
+
+    def test_expand_filter_shortcuts_with_common_shortcuts(self, test_hosts_config):
+        """Test expansion of common Docker shortcuts."""
+        client = SSHDockerClient(hosts_config=test_hosts_config)
+        
+        filters = {
+            "STATUS": "running",
+            "IMAGE": "nginx",
+            "NETWORK": "bridge",
+            "VOLUME": "data"
+        }
+        
+        expanded = client._expand_filter_shortcuts(filters)
+        
+        assert expanded == {
+            "status": "running",
+            "ancestor": "nginx", 
+            "network": "bridge",
+            "volume": "data"
+        }
+
+    def test_expand_filter_shortcuts_with_name_shortcuts(self, test_hosts_config):
+        """Test expansion of name shortcuts."""
+        client = SSHDockerClient(hosts_config=test_hosts_config)
+        
+        filters = {
+            "NAME": "web-container",
+            "ID": "abc123"
+        }
+        
+        expanded = client._expand_filter_shortcuts(filters)
+        
+        assert expanded == {
+            "name": "web-container",
+            "id": "abc123"
+        }
+
+    def test_expand_filter_shortcuts_preserves_lowercase(self, test_hosts_config):
+        """Test that lowercase keys are preserved unchanged."""
+        client = SSHDockerClient(hosts_config=test_hosts_config)
+        
+        filters = {
+            "name": "existing-filter",
+            "STATUS": "running"  # This should be expanded
+        }
+        
+        expanded = client._expand_filter_shortcuts(filters)
+        
+        assert expanded == {
+            "status": "running",
+            "name": "existing-filter"
+        }
+
+    def test_expand_filter_shortcuts_mixed_case_ignored(self, test_hosts_config):
+        """Test that mixed case keys are treated as regular filters."""
+        client = SSHDockerClient(hosts_config=test_hosts_config)
+        
+        filters = {
+            "Service": "web",  # Mixed case - should not expand
+            "service": "api"   # Lowercase - should not expand
+        }
+        
+        expanded = client._expand_filter_shortcuts(filters)
+        
+        assert expanded == {
+            "Service": "web",
+            "service": "api"
+        }
+
+    def test_expand_filter_shortcuts_none_input(self, test_hosts_config):
+        """Test that None input returns None."""
+        client = SSHDockerClient(hosts_config=test_hosts_config)
+        
+        expanded = client._expand_filter_shortcuts(None)
+        
+        assert expanded is None
+
+    def test_expand_filter_shortcuts_empty_dict(self, test_hosts_config):
+        """Test that empty dict returns empty dict."""
+        client = SSHDockerClient(hosts_config=test_hosts_config)
+        
+        expanded = client._expand_filter_shortcuts({})
+        
+        assert expanded == {}
+
+
 class TestSSHDockerClient:
     """Test cases for SSHDockerClient class."""
 
@@ -157,6 +262,28 @@ class TestSSHDockerClient:
         
         assert '--filter "label=com.docker.compose.service=web"' in command
         assert '--filter "name=myapp"' in command
+
+    @pytest.mark.asyncio
+    async def test_list_containers_with_shortcuts(self, ssh_docker_client, mock_connection_pool, sample_docker_ps_output):
+        """Test listing containers with filter shortcuts."""
+        mock_connection_pool.execute_docker_command = AsyncMock(return_value=sample_docker_ps_output)
+        filters = {
+            "SERVICE": "web",
+            "STATUS": "running"
+        }
+        
+        containers = await ssh_docker_client.list_containers("test-host", filters=filters)
+        
+        # Should call docker ps with expanded filter flags
+        mock_connection_pool.execute_docker_command.assert_called_once()
+        call_args = mock_connection_pool.execute_docker_command.call_args[0]
+        command = call_args[1]
+        
+        assert '--filter "label=com.docker.compose.service=web"' in command
+        assert '--filter "status=running"' in command
+        
+        assert len(containers) >= 1
+        assert containers[0]['host'] == 'test-host'
 
     @pytest.mark.asyncio
     async def test_analyze_compose_deployment_no_containers(self, ssh_docker_client, mock_connection_pool):
