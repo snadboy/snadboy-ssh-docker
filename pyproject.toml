@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "snadboy-ssh-docker"
-version = "0.1.1"
+version = "0.2.0"
 description = "A Python library for managing Docker containers over SSH connections"
 readme = "src/snadboy_ssh_docker/README.md"
 requires-python = ">=3.8"
@@ -35,6 +35,10 @@ dependencies = [
 dev = [
     "pytest>=6.0",
     "pytest-asyncio",
+    "pytest-mock",
+    "pytest-cov",
+    "testcontainers",
+    "docker",
     "black",
     "isort",
     "flake8",
@@ -70,3 +74,17 @@ python_version = "3.8"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers --cov=src/snadboy_ssh_docker --cov-report=term-missing --cov-report=html"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+markers = [
+    "unit: marks tests as unit tests",
+    "integration: marks tests as integration tests",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
