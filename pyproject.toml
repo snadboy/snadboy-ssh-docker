@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "snadboy-ssh-docker"
-version = "0.2.1"
-description = "A Python library for managing Docker containers over SSH connections"
+version = "0.3.0"
+description = "A Python library for managing Docker containers across multiple remote hosts using Tailscale SSH"
 readme = "src/snadboy_ssh_docker/README.md"
 requires-python = ">=3.8"
 license = "MIT"
