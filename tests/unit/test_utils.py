@@ -15,7 +15,7 @@ from snadboy_ssh_docker.utils import (
     parse_docker_version,
     parse_compose_services
 )
-from snadboy_ssh_docker.models import ContainerInfo
+from snadboy_ssh_docker.models import DockerContainer
 from snadboy_ssh_docker.exceptions import DockerCommandError
 
 

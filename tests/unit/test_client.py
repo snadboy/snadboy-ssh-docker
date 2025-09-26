@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 from snadboy_ssh_docker.client import SSHDockerClient
 from snadboy_ssh_docker.exceptions import ConfigurationError, HostNotFoundError, DockerCommandError
-from snadboy_ssh_docker.models import ContainerInfo
+from snadboy_ssh_docker.models import DockerContainer
 
 
 class TestFilterShortcuts:

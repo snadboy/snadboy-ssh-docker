@@ -91,143 +91,115 @@ class HostsConfig(BaseModel):
                 return (alias, self.get_host_config(alias))
         return None
 
-    def validate_ssh_keys(self) -> List[str]:
-        """Validate that all SSH key files exist.
-
-        Returns list of missing key files.
-        """
-        missing_keys = []
-        checked_keys = set()
-
-        for alias, host in self.get_enabled_hosts().items():
-            key_path = Path(host.key_file).expanduser()
-
-            # Skip if we've already checked this key
-            if str(key_path) in checked_keys:
-                continue
-
-            checked_keys.add(str(key_path))
-
-            if not key_path.exists():
-                missing_keys.append(f"{alias}: {host.key_file}")
-
-        return missing_keys
-
 
 def load_hosts_config(config_file: Path) -> HostsConfig:
     """Load hosts configuration from YAML file.
 
     Args:
-        config_file: Path to YAML configuration file
+        config_file: Path to hosts.yml configuration file
 
     Returns:
-        HostsConfig object
+        Loaded and validated hosts configuration
 
     Raises:
         ConfigurationError: If configuration is invalid
     """
+    # Ensure config file exists
+    if not config_file.exists():
+        raise ConfigurationError(f"Configuration file not found: {config_file}")
+
+    # Load YAML
     try:
-        if not config_file.exists():
-            raise ConfigurationError(f"Configuration file not found: {config_file}")
-
-        with open(config_file, "r", encoding="utf-8") as f:
+        with open(config_file, "r") as f:
             data = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        raise ConfigurationError(f"Failed to parse YAML: {e}")
 
-        if not data:
-            raise ConfigurationError("Configuration file is empty")
+    # Validate data structure
+    if not isinstance(data, dict):
+        raise ConfigurationError("Configuration must be a dictionary")
 
-        # Validate the structure
-        if not isinstance(data, dict):
-            raise ConfigurationError("Configuration must be a dictionary")
+    # Process hosts
+    hosts_data = data.get("hosts", {})
+    if not hosts_data:
+        raise ConfigurationError("No hosts defined in configuration")
 
-        if "hosts" not in data:
-            raise ConfigurationError("Configuration must contain 'hosts' section")
-
-        # Apply defaults to each host entry before validation
-        defaults = data.get("defaults", {})
-        if defaults:
-            for host_alias, host_config in data["hosts"].items():
+    # Process defaults if present
+    defaults_data = data.get("defaults", {})
+    if defaults_data:
+        # Apply common defaults to hosts that don't have explicit values
+        for host_alias, host_config in hosts_data.items():
+            if isinstance(host_config, dict):
                 # Apply defaults for missing fields
-                for key, value in defaults.items():
+                for key, value in defaults_data.items():
                     if key not in host_config:
                         host_config[key] = value
 
-        # Create and validate configuration
-        try:
-            hosts_config = HostsConfig(**data)
-        except ValidationError as e:
-            raise ConfigurationError(f"Invalid configuration: {e}")
+    # Create and validate configuration
+    try:
+        hosts_config = HostsConfig(**data)
+    except ValidationError as e:
+        raise ConfigurationError(f"Invalid configuration: {e}")
 
-        return hosts_config
-
-    except yaml.YAMLError as e:
-        raise ConfigurationError(f"Invalid YAML format: {e}")
-    except Exception as e:
-        if isinstance(e, ConfigurationError):
-            raise
-        raise ConfigurationError(f"Error loading configuration: {e}")
+    return hosts_config
 
 
-def validate_hosts_config(config_file: Path) -> bool:
-    """Validate hosts configuration file without loading it.
+def save_hosts_config(config: HostsConfig, config_file: Path) -> None:
+    """Save hosts configuration to YAML file.
 
     Args:
-        config_file: Path to YAML configuration file
-
-    Returns:
-        True if configuration is valid, False otherwise
+        config: Hosts configuration to save
+        config_file: Path to save configuration to
     """
-    try:
-        load_hosts_config(config_file)
-        return True
-    except Exception:
-        return False
+    # Convert to dictionary
+    config_dict = config.model_dump(exclude_none=True)
+
+    # Write YAML
+    with open(config_file, "w") as f:
+        yaml.safe_dump(config_dict, f, default_flow_style=False, sort_keys=False)
 
 
 def create_example_config(output_file: Path) -> None:
-    """Create an example configuration file.
+    """Create an example hosts configuration file.
 
     Args:
-        output_file: Path where to write the example configuration
+        output_file: Path to write example configuration to
     """
     example_config = """# SSH Docker Client Configuration
-# This file defines the remote Docker hosts to manage
+# This file defines Docker hosts accessible via Tailscale SSH
 
-# Global defaults for all hosts (optional)
+# Default values for all hosts (can be overridden per host)
 defaults:
   user: deploy
   port: 22
-  key_file: ~/.ssh/id_rsa
   enabled: true
 
 # Host definitions
 hosts:
-  # Production server
+  # Tailscale host using MagicDNS name
   prod:
-    hostname: prod.example.com
+    hostname: prod.tail-scale.ts.net
     description: "Production Docker host"
-    
-  # Staging server with custom settings
+
+  # Tailscale host with custom settings
   staging:
-    hostname: staging.example.com
-    user: staging-user  # Override default user
-    port: 2222         # Custom SSH port
-    key_file: ~/.ssh/staging_key
+    hostname: staging.tail-scale.ts.net
+    user: docker-admin   # Override default user
+    port: 2222          # Custom SSH port
     description: "Staging environment"
-    
-  # Development server (temporarily disabled)
+
+  # Disabled host (temporarily unavailable)
   dev:
-    hostname: dev.local
+    hostname: dev.tail-scale.ts.net
     enabled: false  # Disable this host
-    description: "Local development"
-    
+    description: "Development environment (currently offline)"
+
   # Another production server
   prod2:
-    hostname: prod2.example.com
-    user: root  # Different user
-    description: "Secondary production host"
+    hostname: prod2.tail-scale.ts.net
+    description: "Secondary production server"
 """
 
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text(example_config)
+    # Write example configuration
+    output_file.write_text(example_config.strip())
     print(f"Example configuration written to: {output_file}")

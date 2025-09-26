@@ -20,14 +20,12 @@ class SSHDockerClient:
         self,
         config_file: Optional[Path] = None,
         hosts_config: Optional[HostsConfig] = None,
-        ssh_dir: Optional[Path] = None,
     ):
         """Initialize SSH Docker client.
 
         Args:
             config_file: Path to hosts.yml configuration file
             hosts_config: Pre-loaded hosts configuration
-            ssh_dir: SSH directory path (defaults to ~/.ssh)
 
         Raises:
             ConfigurationError: If no configuration provided
@@ -41,7 +39,7 @@ class SSHDockerClient:
                 "Either config_file or hosts_config must be provided"
             )
 
-        self.ssh_manager = SSHManager(ssh_dir=ssh_dir)
+        self.ssh_manager = SSHManager()
         self.connection_pool = ConnectionPool(self.hosts_config, self.ssh_manager)
         self._setup_complete = False
 
@@ -59,15 +57,20 @@ class SSHDockerClient:
         return cls(config_file=Path(config_file), **kwargs)
 
     def setup_ssh(self) -> None:
-        """Set up SSH configuration for all hosts."""
+        """Initialize SSH manager with hosts configuration.
+
+        Since we only use Tailscale, no SSH config generation is needed.
+        """
         if self._setup_complete:
             return
 
         # Pass the hosts config to SSH manager
         self.ssh_manager.hosts_config = self.hosts_config
-        self.ssh_manager._ensure_ssh_directory()
-        self.ssh_manager._generate_ssh_config()
-        self.ssh_manager._validate_ssh_keys()
+
+        # Count enabled hosts for informational output
+        enabled_hosts = self.hosts_config.get_enabled_hosts()
+        if enabled_hosts:
+            print(f"Found {len(enabled_hosts)} Tailscale hosts configured")
 
         self._setup_complete = True
 

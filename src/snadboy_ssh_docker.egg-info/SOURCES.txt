@@ -4,7 +4,6 @@ pyproject.toml
 setup.cfg
 src/snadboy_ssh_docker/README.md
 src/snadboy_ssh_docker/__init__.py
-src/snadboy_ssh_docker/_version.py
 src/snadboy_ssh_docker/cli.py
 src/snadboy_ssh_docker/client.py
 src/snadboy_ssh_docker/config.py
