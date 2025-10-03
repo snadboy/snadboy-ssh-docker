@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-10-03
+
+### Added
+- **Localhost Support**: Native support for local Docker daemon without SSH
+  - Added `is_local` flag to `HostConfig` model
+  - Localhost uses Docker socket directly (no SSH overhead)
+  - Remote hosts use `docker -H ssh://user@host` instead of wrapping commands with SSH
+
+### Changed
+- **Command execution refactored**:
+  - Localhost: `docker <command>` (uses `/var/run/docker.sock`)
+  - Remote: `docker -H ssh://user@host <command>` (native Docker remote support)
+  - Removed SSH wrapper for remote commands in favor of Docker's built-in SSH support
+- **Event streaming updated**: Both localhost and remote now use Docker native event streams
+  - Localhost: `docker events`
+  - Remote: `docker -H ssh://user@host events`
+
+### Benefits
+- ✅ No SSH-to-localhost required
+- ✅ Unified command interface for local and remote
+- ✅ Better performance for localhost operations
+- ✅ Leverages Docker's native remote host support
+
 ## [0.2.1] - 2025-07-27
 
 ### Added

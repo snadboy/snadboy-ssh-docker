@@ -50,21 +50,33 @@ class ConnectionPool:
             raise HostNotFoundError(f"Host '{host_alias}' not found in configuration")
 
         host_config = self.hosts_config.get_host_config(host_alias)
-        ssh_alias = host_config.get_ssh_alias()
 
-        # Build command
+        # Build command based on whether this is a local or remote host
         if not command.strip().startswith("docker"):
             command = f"docker {command}"
 
         try:
-            # Execute command via Tailscale SSH
-            process = await asyncio.create_subprocess_exec(
-                "ssh",
-                ssh_alias,
-                command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
+            if host_config.is_local:
+                # Localhost: Use docker directly (uses /var/run/docker.sock)
+                cmd_parts = command.split()
+                process = await asyncio.create_subprocess_exec(
+                    *cmd_parts,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+            else:
+                # Remote: Use docker -H ssh://user@host
+                docker_host = f"ssh://{host_config.user}@{host_config.hostname}"
+                cmd_parts = command.split()
+                # Insert -H flag after 'docker'
+                cmd_parts.insert(1, "-H")
+                cmd_parts.insert(2, docker_host)
+
+                process = await asyncio.create_subprocess_exec(
+                    *cmd_parts,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
 
             # Wait for command with timeout
             stdout, stderr = await asyncio.wait_for(
@@ -74,7 +86,7 @@ class ConnectionPool:
             # Check for errors
             if process.returncode != 0:
                 error_msg = stderr.decode().strip()
-                if "ssh:" in error_msg.lower() or "connection" in error_msg.lower():
+                if not host_config.is_local and ("ssh:" in error_msg.lower() or "connection" in error_msg.lower()):
                     raise SSHConnectionError(f"SSH connection failed: {error_msg}")
                 raise DockerCommandError(f"Docker command failed: {error_msg}")
 
@@ -132,10 +144,15 @@ class ConnectionPool:
         await self.stop_event_stream(host_alias)
 
         host_config = self.hosts_config.get_host_config(host_alias)
-        ssh_alias = host_config.get_ssh_alias()
 
-        # Build docker events command
-        cmd = ["ssh", ssh_alias, "docker", "events", "--format", "{{json .}}"]
+        # Build docker events command based on host type
+        if host_config.is_local:
+            # Localhost: docker events --format {{json .}}
+            cmd = ["docker", "events", "--format", "{{json .}}"]
+        else:
+            # Remote: docker -H ssh://user@host events --format {{json .}}
+            docker_host = f"ssh://{host_config.user}@{host_config.hostname}"
+            cmd = ["docker", "-H", docker_host, "events", "--format", "{{json .}}"]
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -204,15 +221,26 @@ class ConnectionPool:
         """
         # Get host configuration
         host_config = self.hosts_config.get_host_config(host_alias)
-        ssh_alias = host_config.get_ssh_alias()
 
         # Build docker command
         docker_cmd = command if command.startswith("docker") else f"docker {command}"
+        cmd_parts = docker_cmd.split()
 
-        # Execute via Tailscale SSH
+        # Build command based on host type
+        if host_config.is_local:
+            # Localhost: docker <args>
+            cmd = cmd_parts
+        else:
+            # Remote: docker -H ssh://user@host <args>
+            docker_host = f"ssh://{host_config.user}@{host_config.hostname}"
+            cmd_parts.insert(1, "-H")
+            cmd_parts.insert(2, docker_host)
+            cmd = cmd_parts
+
+        # Execute command
         try:
             result = subprocess.run(
-                ["ssh", ssh_alias, docker_cmd],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -220,7 +248,7 @@ class ConnectionPool:
 
             if result.returncode != 0:
                 error_msg = result.stderr.strip()
-                if "ssh:" in error_msg.lower() or "connection" in error_msg.lower():
+                if not host_config.is_local and ("ssh:" in error_msg.lower() or "connection" in error_msg.lower()):
                     raise SSHConnectionError(f"SSH connection failed: {error_msg}")
                 raise DockerCommandError(f"Docker command failed: {error_msg}")
 

@@ -12,6 +12,7 @@ class HostConfig(BaseModel):
     hostname: str
     user: str
     port: int = 22
+    is_local: bool = False
     description: str = ""
     enabled: bool = True
 
