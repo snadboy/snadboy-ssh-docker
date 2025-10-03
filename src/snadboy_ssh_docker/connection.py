@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import shlex
 import subprocess
 from typing import Any, Dict, Optional
 
@@ -58,7 +59,7 @@ class ConnectionPool:
         try:
             if host_config.is_local:
                 # Localhost: Use docker directly (uses /var/run/docker.sock)
-                cmd_parts = command.split()
+                cmd_parts = shlex.split(command)
                 process = await asyncio.create_subprocess_exec(
                     *cmd_parts,
                     stdout=asyncio.subprocess.PIPE,
@@ -67,7 +68,7 @@ class ConnectionPool:
             else:
                 # Remote: Use docker -H ssh://user@host
                 docker_host = f"ssh://{host_config.user}@{host_config.hostname}"
-                cmd_parts = command.split()
+                cmd_parts = shlex.split(command)
                 # Insert -H flag after 'docker'
                 cmd_parts.insert(1, "-H")
                 cmd_parts.insert(2, docker_host)
@@ -224,7 +225,7 @@ class ConnectionPool:
 
         # Build docker command
         docker_cmd = command if command.startswith("docker") else f"docker {command}"
-        cmd_parts = docker_cmd.split()
+        cmd_parts = shlex.split(docker_cmd)
 
         # Build command based on host type
         if host_config.is_local:
